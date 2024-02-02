@@ -56,8 +56,14 @@ class mod_board_mod_form extends moodleform_mod {
         $mform->addRule('background_color', get_string('maximumchars', '', 9), 'maxlength', 9, 'client');
         $mform->addHelpButton('background_color', 'background_color', 'mod_board');
 
+        $extensions = board::get_accepted_file_extensions();
+
+        $extensions = array_map(function($extension) {
+            return '.' . $extension;
+        }, $extensions);
+
         $filemanageroptions = array();
-        $filemanageroptions['accepted_types'] = array('.png', '.jpg', '.jpeg', '.bmp');
+        $filemanageroptions['accepted_types'] = $extensions;
         $filemanageroptions['maxbytes'] = 0;
         $filemanageroptions['maxfiles'] = 1;
         $filemanageroptions['subdirs'] = 0;
@@ -90,13 +96,23 @@ class mod_board_mod_form extends moodleform_mod {
         if ($boardhasnotes) {
             $mform->addElement('html', '<div class="alert alert-info">'.get_string('boardhasnotes', 'mod_board').'</div>');
         }
-        $mform->addElement('select', 'singleusermode', get_string('singleusermode', 'mod_board'),
-           array(
-                board::SINGLEUSER_DISABLED => get_string('singleusermodenone', 'mod_board'),
-                board::SINGLEUSER_PRIVATE => get_string('singleusermodeprivate', 'mod_board'),
-                board::SINGLEUSER_PUBLIC => get_string('singleusermodepublic', 'mod_board')
-            )
+        list($allowprivate, $allowpublic) = str_split(get_config('mod_board', 'allowed_singleuser_modes'));
+        $modesallow = [
+            board::SINGLEUSER_PRIVATE => $allowprivate,
+            board::SINGLEUSER_PUBLIC => $allowpublic,
+            board::SINGLEUSER_DISABLED => "1"
+        ];
+        $allowedsumodes = array_filter([
+            board::SINGLEUSER_DISABLED => get_string('singleusermodenone', 'mod_board'),
+            board::SINGLEUSER_PRIVATE => get_string('singleusermodeprivate', 'mod_board'),
+            board::SINGLEUSER_PUBLIC => get_string('singleusermodepublic', 'mod_board')
+            ], function($mode) use ($modesallow) {
+                return $modesallow[$mode];
+            }, ARRAY_FILTER_USE_KEY
         );
+        if (count($allowedsumodes) > 1) {
+            $mform->addElement('select', 'singleusermode', get_string('singleusermode', 'mod_board'), $allowedsumodes);
+        }
         $mform->setType('singleusermode', PARAM_INT);
         if ($boardhasnotes) {
             $mform->addElement('hidden', 'hasnotes', $boardhasnotes);
@@ -148,9 +164,6 @@ class mod_board_mod_form extends moodleform_mod {
     public function validation($data, $files) {
         $errors = parent::validation($data, $files);
 
-        if (!empty($data['groupmode']) && empty($data['groupingid'])) {
-            $errors['groupingid'] = get_string('groupingid_required', 'mod_board');
-        }
         if (($data['embed'] == 1) && ($data['singleusermode'] != board::SINGLEUSER_DISABLED)) {
             $errors['embed'] = get_string('singleusermodenotembed', 'mod_board');
         }
